@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Orders · Clothing CRM</title>
+<link rel="stylesheet" href="../css/styles.css"/>
+</head><body>
+<script src="../js/api.js"></script>
+<script src="../js/app.js"></script>
+<script>
+requireAuth();
+renderShell("orders", "Orders");
+let state = { page: 0, size: 10 };
+
+document.getElementById("page").innerHTML = `
+  <div class="toolbar">
+    <a class="btn right" href="order-form.html">+ New order</a>
+  </div>
+  <div class="table-wrap"><table><thead><tr>
+    <th>#</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th>
+  </tr></thead><tbody id="rows"></tbody></table>
+  <div class="pagination" id="pager"></div></div>`;
+
+const STATUSES = ["PENDING","PROCESSING","DELIVERED","CANCELLED"];
+
+async function load() {
+  const data = await api(`/api/orders?page=${state.page}&size=${state.size}`);
+  document.getElementById("rows").innerHTML = data.content.map(o => `
+    <tr>
+      <td>#${o.id}</td>
+      <td>${o.customer ? o.customer.fullName : "—"}</td>
+      <td>${fmtDate(o.orderDate)}</td>
+      <td>${(o.items || []).length}</td>
+      <td>${fmtMoney(o.totalAmount)}</td>
+      <td><span class="badge ${o.status}">${o.status}</span></td>
+      <td class="row">
+        ${isAdmin() ? `
+          <select data-status="${o.id}" class="form">
+            ${STATUSES.map(s => `<option value="${s}" ${s===o.status?"selected":""}>${s}</option>`).join("")}
+          </select>
+          <button class="btn small danger" data-del="${o.id}">Delete</button>` : ''}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="7" style="color:var(--muted)">No orders</td></tr>`;
+  document.getElementById("pager").innerHTML = `
+    <button class="btn small secondary" ${state.page<=0?"disabled":""} id="prev">Prev</button>
+    <span>Page ${data.number+1} / ${Math.max(1,data.totalPages)}</span>
+    <button class="btn small secondary" ${state.page+1>=data.totalPages?"disabled":""} id="next">Next</button>`;
+  document.getElementById("prev").onclick = () => { state.page--; load(); };
+  document.getElementById("next").onclick = () => { state.page++; load(); };
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Delete this order?")) return;
+    await api("/api/orders/" + b.dataset.del, { method: "DELETE" }); load();
+  });
+  document.querySelectorAll("[data-status]").forEach(s => s.onchange = async () => {
+    try {
+      await api("/api/orders/" + s.dataset.status + "/status",
+        { method: "PUT", body: JSON.stringify({ status: s.value }) });
+      load();
+    } catch (e) { alert(e.message); }
+  });
+}
+load().catch(e => alert(e.message));
+</script>
+</body></html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Customer Form · Clothing CRM</title>
+<link rel="stylesheet" href="../css/styles.css"/>
+</head><body>
+<script src="../js/api.js"></script>
+<script src="../js/app.js"></script>
+<script>
+requireAuth();
+if (!isAdmin()) { alert("Admins only"); location.href = "customers.html"; }
+const id = qsParam("id");
+renderShell("customers", id ? "Edit customer" : "New customer");
+
+document.getElementById("page").innerHTML = `
+  <form id="f" class="form" style="max-width:520px">
+    <label>Full name<input name="fullName" required/></label>
+    <label>Email<input name="email" type="email"/></label>
+    <label>Phone<input name="phone"/></label>
+    <label>Address<input name="address"/></label>
+    <label>Loyalty points<input name="loyaltyPoints" type="number" value="0"/></label>
+    <div class="row">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn secondary" href="customers.html">Cancel</a>
+    </div>
+  </form>`;
+
+(async () => {
+  if (id) {
+    const c = await api("/api/customers/" + id);
+    for (const [k,v] of Object.entries(c)) {
+      const el = document.querySelector(`[name="${k}"]`); if (el) el.value = v ?? "";
+    }
+  }
+})();
+
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  fd.loyaltyPoints = parseInt(fd.loyaltyPoints || "0", 10);
+  try {
+    if (id) await api("/api/customers/" + id, { method: "PUT", body: JSON.stringify(fd) });
+    else    await api("/api/customers",        { method: "POST", body: JSON.stringify(fd) });
+    location.href = "customers.html";
+  } catch (err) { alert(err.message); }
+});
+</script>
+</body></html>

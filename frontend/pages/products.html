@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Products · Clothing CRM</title>
+<link rel="stylesheet" href="../css/styles.css"/>
+</head><body>
+<script src="../js/api.js"></script>
+<script src="../js/app.js"></script>
+<script>
+requireAuth();
+renderShell("products", "Products");
+let state = { page: 0, size: 10, q: "" };
+
+document.getElementById("page").innerHTML = `
+  <div id="lowStock"></div>
+  <div class="toolbar">
+    <input id="q" class="form search" placeholder="Search by name or category..."/>
+    <button class="btn secondary" id="searchBtn">Search</button>
+    ${isAdmin() ? '<a class="btn right" href="product-form.html">+ New product</a>' : ''}
+  </div>
+  <div class="table-wrap"><table><thead><tr>
+    <th>ID</th><th>Name</th><th>Category</th><th>Size</th><th>Color</th><th>Price</th><th>Stock</th><th></th>
+  </tr></thead><tbody id="rows"></tbody></table>
+  <div class="pagination" id="pager"></div></div>`;
+
+document.getElementById("searchBtn").onclick = () => {
+  state.q = document.getElementById("q").value.trim(); state.page = 0; load();
+};
+
+async function loadLowStock() {
+  try {
+    const low = await api("/api/products/low-stock?threshold=5");
+    if (low.length) {
+      document.getElementById("lowStock").innerHTML =
+        `<div class="alert warn">⚠ Low stock: ${low.map(p => `${p.name} (${p.stockQuantity})`).join(", ")}</div>`;
+    }
+  } catch {}
+}
+async function load() {
+  const data = await api(`/api/products?page=${state.page}&size=${state.size}&q=${encodeURIComponent(state.q)}`);
+  document.getElementById("rows").innerHTML = data.content.map(p => `
+    <tr>
+      <td>${p.id}</td><td>${p.name}</td><td>${p.category || ""}</td>
+      <td>${p.size || ""}</td><td>${p.color || ""}</td><td>${fmtMoney(p.price)}</td>
+      <td>${p.stockQuantity}</td>
+      <td class="row">
+        ${isAdmin() ? `<a class="btn small secondary" href="product-form.html?id=${p.id}">Edit</a>
+        <button class="btn small danger" data-del="${p.id}">Delete</button>` : ''}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="8" style="color:var(--muted)">No products</td></tr>`;
+  document.getElementById("pager").innerHTML = `
+    <button class="btn small secondary" ${state.page<=0?"disabled":""} id="prev">Prev</button>
+    <span>Page ${data.number+1} / ${Math.max(1,data.totalPages)}</span>
+    <button class="btn small secondary" ${state.page+1>=data.totalPages?"disabled":""} id="next">Next</button>`;
+  document.getElementById("prev").onclick = () => { state.page--; load(); };
+  document.getElementById("next").onclick = () => { state.page++; load(); };
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Delete this product?")) return;
+    await api("/api/products/" + b.dataset.del, { method: "DELETE" }); load(); loadLowStock();
+  });
+}
+loadLowStock(); load().catch(e => alert(e.message));
+</script>
+</body></html>

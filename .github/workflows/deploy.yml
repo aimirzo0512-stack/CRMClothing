@@ -1,0 +1,55 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build backend (Gradle)
+        working-directory: backend
+        run: |
+          gradle wrapper --gradle-version 8.5 || true
+          ./gradlew bootJar --no-daemon || gradle bootJar --no-daemon
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images
+        run: |
+          docker build -t clothing-crm-backend ./backend
+          docker build -t clothing-crm-frontend ./frontend
+
+      # ---- Deploy to AWS EC2 over SSH ----
+      - name: Copy project to EC2
+        if: ${{ secrets.EC2_HOST != '' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "."
+          target: "/home/${{ secrets.EC2_USER }}/clothing-crm"
+
+      - name: Run docker compose on EC2
+        if: ${{ secrets.EC2_HOST != '' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.EC2_USER }}/clothing-crm
+            docker compose pull || true
+            docker compose up -d --build

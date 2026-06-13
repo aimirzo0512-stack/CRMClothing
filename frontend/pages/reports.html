@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Reports · Clothing CRM</title>
+<link rel="stylesheet" href="../css/styles.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head><body>
+<script src="../js/api.js"></script>
+<script src="../js/app.js"></script>
+<script>
+requireAuth();
+renderShell("reports", "Reports");
+
+document.getElementById("page").innerHTML = `
+  <div class="chart-wrap"><h3>Daily sales (last 30 days)</h3><canvas id="d" height="80"></canvas></div>
+  <div class="chart-wrap"><h3>Monthly sales</h3><canvas id="m" height="80"></canvas></div>
+  <div class="chart-wrap"><h3>Top products</h3>
+    <div class="table-wrap"><table><thead><tr><th>#</th><th>Product</th><th>Quantity sold</th></tr></thead>
+    <tbody id="top"></tbody></table></div>
+  </div>`;
+
+(async () => {
+  const [daily, monthly, top] = await Promise.all([
+    api("/api/reports/daily-sales?days=30"),
+    api("/api/reports/monthly-sales"),
+    api("/api/reports/top-products?limit=10")
+  ]);
+  mkBar("d", daily.map(r => r.date),  daily.map(r => Number(r.total)),  "Sales");
+  mkBar("m", monthly.map(r => r.month), monthly.map(r => Number(r.total)), "Sales");
+  document.getElementById("top").innerHTML = top.map((r,i) =>
+    `<tr><td>${i+1}</td><td>${r.name}</td><td>${r.quantity}</td></tr>`).join("")
+    || `<tr><td colspan="3" style="color:var(--muted)">No sales yet</td></tr>`;
+})().catch(e => alert(e.message));
+
+function mkBar(id, labels, values, label) {
+  new Chart(document.getElementById(id), {
+    type: "bar",
+    data: { labels, datasets: [{ label, data: values, backgroundColor: "#5b8cff" }] },
+    options: { plugins: { legend: { labels: { color: "#e6e9ef" } } },
+      scales: { x: { ticks: { color: "#8b94a7" } }, y: { ticks: { color: "#8b94a7" } } } }
+  });
+}
+</script>
+</body></html>
