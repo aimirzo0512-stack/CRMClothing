@@ -16,7 +16,7 @@ function renderShell(activeKey, title) {
   document.body.innerHTML = `
     <div class="app">
       <aside class="sidebar">
-        <div class="brand">Clothing CRM</div>
+        <div class="brand">Retake CRM</div>
         <nav class="nav">
           ${links}
           <div class="logout" id="logoutBtn">Logout</div>
